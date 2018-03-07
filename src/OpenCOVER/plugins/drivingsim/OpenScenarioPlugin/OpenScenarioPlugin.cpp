@@ -43,6 +43,10 @@ version 2.1 or later, see lgpl-2.1.txt.
 #include "myFactory.h"
 #include "CameraSensor.h"
 #include <config/CoviseConfig.h>
+#include "Position.h"
+#include "Spline.h"
+#include "Entity.h"
+#include "ReferencePosition.h"
 
 using namespace OpenScenario; 
 using namespace opencover;
@@ -105,44 +109,65 @@ void OpenScenarioPlugin::preFrame()
     entityList_temp.sort();unusedEntity.sort();
     scenarioManager->conditionManager();
 
-    if (scenarioManager->conditionControl())
+    if (scenarioManager->scenarioCondition)
     {
         for(list<Act*>::iterator act_iter = scenarioManager->actList.begin(); act_iter != scenarioManager->actList.end(); act_iter++)
         {
             Act* currrentAct = (*act_iter);
             //check act start conditions
-            if (scenarioManager->conditionControl((*act_iter)))
+            if ((*act_iter)->actCondition)
             {
                 for(list<Maneuver*>::iterator maneuver_iter = (*act_iter)->maneuverList.begin(); maneuver_iter != (*act_iter)->maneuverList.end(); maneuver_iter++)
                 {
                     Maneuver* currentManeuver = (*maneuver_iter);
                     //check maneuver start conditions
-                    if (scenarioManager->conditionControl((*maneuver_iter)))
+                    if ((*maneuver_iter)->maneuverCondition)
                     {
                         if((*maneuver_iter)->maneuverType == "followTrajectory")
                         {
                             for(list<Trajectory*>::iterator trajectory_iter = (*maneuver_iter)->trajectoryList.begin(); trajectory_iter != (*maneuver_iter)->trajectoryList.end(); trajectory_iter++)
                             {
                                 Trajectory* currentTrajectory = (*trajectory_iter);
-                                for(list<Entity*>::iterator activeEntity = (*act_iter)->activeEntityList.begin(); activeEntity != (*act_iter)->activeEntityList.end(); activeEntity++)
+                                for(list<Entity*>::iterator activeEntity = (*maneuver_iter)->activeEntityList.begin(); activeEntity != (*maneuver_iter)->activeEntityList.end(); activeEntity++)
                                 {
+                                    Position* currentPos;
                                     Entity* currentEntity = (*activeEntity);
                                     // check if Trajectory is about to start or Entity arrived at vertice
-                                    if((*activeEntity)->totalDistance == 0){
-                                        (*activeEntity)->setAbsVertPos();
-                                        // read next vertice from trajectory, convert it to absolute coordinates and put it as next target
-                                        osg::Vec3 nextTargetPos = (*trajectory_iter)->getAbsolute((*activeEntity));
+                                    if((*activeEntity)->totalDistance == 0)
+                                    {
+                                        (*activeEntity)->setRefPos();
+                                        currentPos = ((Position*)((*trajectory_iter)->Vertex[(*activeEntity)->visitedVertices]->Position.getObject()));
 
-                                        (*activeEntity)->setTrajectoryDirection(nextTargetPos);
+                                        osg::Vec3 nextTargetPos0 = currentPos->getAbsolutePosition((*activeEntity),system, scenarioManager->entityList);
+                                        oscShape* currentShape = (*trajectory_iter)->Vertex[(*activeEntity)->visitedVertices]->Shape.getObject();
 
-                                        if((*trajectory_iter)->domain.getValue() == 0){ //if domain is set to "time"
+                                        if(currentShape->Spline.exists())
+                                        {
+                                            (*activeEntity)->spline = new Spline();
+                                            (*activeEntity)->spline->poly3Spline(currentPos);
+                                            (*activeEntity)->setActiveShape("Spline");
+                                        }
+
+                                        (*activeEntity)->setTrajectoryDirection(nextTargetPos0);
+
+                                        if((*trajectory_iter)->domain.getValue() == 0)
+                                        { //if domain is set to "time"
                                             // calculate speed from trajectory vertices
                                             (*activeEntity)->getTrajSpeed(0.01);
                                         }
-
+                                    }
+                                    if((*activeEntity)->activeShape == "Spline")
+                                    {
+                                        osg::Vec3 test =(*activeEntity)->spline->getSplinePos((*activeEntity)->visitedSplineVertices);
+                                        (*activeEntity)->setSplinePos(test);
+                                        (*activeEntity)->followSpline();
+                                    }
+                                    else
+                                    {
+                                        (*activeEntity)->followTrajectory((*trajectory_iter)->verticesCounter,(*maneuver_iter)->finishedEntityList);
                                     }
 
-                                    (*activeEntity)->followTrajectory((*trajectory_iter)->verticesCounter,(*maneuver_iter)->maneuverCondition, (*maneuver_iter)->maneuverFinished);
+
 
                                     unusedEntity.remove(*activeEntity);
 
@@ -160,17 +185,18 @@ void OpenScenarioPlugin::preFrame()
                             }
                         }
                     }
-                    (*maneuver_iter)->activeManeuverEntities.clear();
                 }
             }
         }
         for(list<Entity*>::iterator entity_iter = unusedEntity.begin(); entity_iter != unusedEntity.end(); entity_iter++)
         {
+            Entity* currentEntity = (*entity_iter);
             (*entity_iter)->moveLongitudinal();
-            (*entity_iter)->entityGeometry->setPosition((*entity_iter)->entityPosition, (*entity_iter)->directionVector);
+            (*entity_iter)->entityGeometry->setPosition((*entity_iter)->entityPosition,(*entity_iter)->directionVector);
             //(*activeEntity)->entityGeometry->move(opencover::cover->frameDuration());
             usedEntity.clear();
         }
+        scenarioManager->endTrajectoryCheck();
     }
     else
     {
@@ -437,19 +463,27 @@ int OpenScenarioPlugin::loadOSCFile(const char *file, osg::Group *, const char *
                     }
                     if(action->Position.exists())
                     {
-                        if (action->Position->Lane.exists()){
+                        if (action->Position->Lane.exists())
+                        {
 
                             currentTentity->roadId = action->Position->Lane->roadId.getValue();
                             currentTentity->laneId = action->Position->Lane->laneId.getValue();
                             currentTentity->inits = action->Position->Lane->s.getValue();
 
+                            ReferencePosition* refPos = new ReferencePosition();
+                            refPos->initFromLane(action->Position->Lane->roadId.getValue(),action->Position->Lane->laneId.getValue(),action->Position->Lane->s.getValue(),system);
+                            currentTentity->refPos = refPos;
+
                             int roadId = atoi(currentTentity->roadId.c_str());
                             currentTentity->setInitEntityPosition(system->getRoad(roadId));
                         }
-                        else if(action->Position->World.exists()){
+                        else if(action->Position->World.exists())
+                        {
+                            Position* pos = (Position*)(action->Position.getObject());
+                            osg::Vec3 initPosition = pos->getAbsoluteWorld();
+                            osg::Vec3 initDirVec = pos->hpr2directionVector();
 
-                            osg::Vec3 initPosition(action->Position->World->x.getValue(), action->Position->World->y.getValue(), action->Position->World->z.getValue());
-                            currentTentity->setInitEntityPosition(initPosition);
+                            currentTentity->setInitEntityPosition(initPosition, initDirVec);
                             currentTentity->setPosition(initPosition);
                         }
                     }
@@ -484,6 +518,7 @@ int OpenScenarioPlugin::loadOSCFile(const char *file, osg::Group *, const char *
             for (oscManeuverArrayMember::iterator it = act->Sequence->Maneuver.begin(); it != act->Sequence->Maneuver.end(); it++)
             {
                 Maneuver* maneuver = ((Maneuver*)(*it)); // these are not oscManeuver instances any more but our own Maneuver
+                maneuver->initialize(activeEntityList_temp);
                 maneuverList_temp.push_back(maneuver);
                 cout << "Manuever: " << maneuver->getName() << " created" << endl;
             }

@@ -22,6 +22,9 @@
 
 #include "NurbsSurface.h"
 #include <cover/coVRPluginSupport.h>
+#include <PluginUtil/PluginMessageTypes.h>
+#include <cover/coVRCommunication.h>
+
 #include <osg/Geometry>
 #include <osg/Material>
 #include <osg/Vec3>
@@ -273,6 +276,15 @@ bool NurbsSurface::destroy()
 NurbsSurface::~NurbsSurface()
 {
     	fprintf(stderr, "Goodbye\n");
+}
+
+void NurbsSurface::message(int toWhom, int type, int len, const void *buf)
+{
+    if (type == PluginMessageTypes::NurbsSurfacePointMsg)
+    {
+        osg::Vec3 *selectedPoint = (osg::Vec3 *)buf;
+        fprintf(stderr, "Point received %f %f %f", selectedPoint->x(), selectedPoint->y(), selectedPoint->z());
+    }
 }
 
 COVERPLUGIN(NurbsSurface)

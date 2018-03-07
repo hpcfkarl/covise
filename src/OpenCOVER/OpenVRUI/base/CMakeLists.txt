@@ -42,7 +42,6 @@ SET(BASE_SOURCES
   coLabelMenuItem.cpp
   coLabelSubMenuToolboxItem.cpp
   coMenu.cpp
-  coMenuChangeListener.cpp
   coMenuContainer.cpp
   coMenuItem.cpp
   coNavInteraction.cpp
@@ -79,8 +78,10 @@ SET(BASE_SOURCES
   coToolboxMenuHandle.cpp
   coToolboxMenuItem.cpp
   coButtonInteraction.cpp
+  coRelativeInputInteraction.cpp
   coTrackerButtonInteraction.cpp
   coMouseButtonInteraction.cpp
+  coRelativeButtonInteraction.cpp
   coCombinedButtonInteraction.cpp
   coUpdateManager.cpp
   coUIContainer.cpp
@@ -158,7 +159,6 @@ SET(BASE_HEADERS
   ../coLabelMenuItem.h
   ../coLabelSubMenuToolboxItem.h
   ../coMenu.h
-  ../coMenuChangeListener.h
   ../coMenuContainer.h
   ../coMenuItem.h
   ../coNavInteraction.h
@@ -190,8 +190,10 @@ SET(BASE_HEADERS
   ../coToolboxMenuHandle.h
   ../coToolboxMenuItem.h
   ../coButtonInteraction.h
+  ../coRelativeInputInteraction.h
   ../coTrackerButtonInteraction.h
   ../coMouseButtonInteraction.h
+  ../coRelativeButtonInteraction.h
   ../coCombinedButtonInteraction.h
   ../coUpdateManager.h
   ../coUIContainer.h

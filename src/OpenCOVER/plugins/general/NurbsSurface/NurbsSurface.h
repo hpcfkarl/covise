@@ -24,6 +24,9 @@
 #include <cover/coVRPluginSupport.h>
 
 #include <osg/Geode>
+#include <cover/coVRCommunication.h>
+#include <net/message.h>
+
 
 #include <string>
 #include <cover/ui/Owner.h>
@@ -43,14 +46,15 @@ using namespace opencover;
 class NurbsSurface : public coVRPlugin, public ui::Owner
 {
 public:
-    	NurbsSurface();
-    	~NurbsSurface();
-    	bool init();
-    	virtual bool destroy();
+    NurbsSurface();
+    ~NurbsSurface();
+    bool init();
+    virtual bool destroy();
 
-	int getorder_U();
-	void setorder_U(int order_U);
-	void computeSurface();
+    int getorder_U();
+    void setorder_U(int order_U);
+    void computeSurface();
+    void message(int toWhom, int type, int len, const void *buf); ///< handle incoming messages
 
 private:
    	osg::ref_ptr<osg::Geode> geode;
